@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov/
+tests/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Project specific
+*.png
+*.jpg
+*.jpeg
+test_ocr.py
+1.16.0
+
+# Docs
+*.md
+LICENSE*
