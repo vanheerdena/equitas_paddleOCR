@@ -4,6 +4,8 @@ FROM python:3.10-slim-bookworm
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    # Default port (Railway will override this)
+    PORT=8000 \
     # Disable PaddlePaddle OneDNN/MKL-DNN
     FLAGS_use_mkldnn=0 \
     FLAGS_onednn=0 \
