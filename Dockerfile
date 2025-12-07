@@ -1,5 +1,5 @@
-# Use Python 3.10 slim image for smaller size
-FROM python:3.10-slim
+# Use Python 3.10 slim image based on Debian Bookworm for better compatibility
+FROM python:3.10-slim-bookworm
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -14,11 +14,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install system dependencies required by OpenCV and PaddlePaddle
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
