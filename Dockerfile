@@ -1,11 +1,9 @@
 # Use Python 3.10 slim image based on Debian Bookworm for better compatibility
 FROM python:3.10-slim-bookworm
 
-# Set environment variables
+# Set environment variables (DO NOT set PORT - let Railway inject it)
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    # Default port (Railway will override this)
-    PORT=8000 \
     # Disable PaddlePaddle OneDNN/MKL-DNN
     FLAGS_use_mkldnn=0 \
     FLAGS_onednn=0 \
@@ -37,8 +35,5 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Expose port (Railway sets PORT env var)
-EXPOSE 8000
-
-# Run the application - use shell form explicitly for variable expansion
-CMD ["/bin/sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Run the application - Railway injects PORT env var, must use shell form for variable expansion
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT
