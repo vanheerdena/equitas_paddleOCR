@@ -1,24 +1,13 @@
-[tool.poetry]
-name = "railway-fastapi-template"
+[project]
+name = "paddleocr-fastapi-service"
 version = "0.1.0"
-description = "This example starts up a FastAPI server"
-authors = ["DeviousLab <deviouslab@gmail.com>"]
-license = "MIT"
+description = "FastAPI wrapper for PaddleOCR text and table extraction"
+requires-python = ">=3.10,<3.12"
 
-[tool.poetry.dependencies]
-python = "^3.10"
-fastapi = "0.110.2"
-uvicorn = "0.30.1"
-paddleocr = "2.7.0.3"
-paddlepaddle = "2.6.1"
-python-dotenv = "1.0.1"
-httpx = "0.27.0"
-python-multipart = "0.0.9"
+[tool.ruff]
+line-length = 100
+target-version = "py310"
 
-[tool.poetry.dev-dependencies]
-pytest = "8.3.3"
-pytest-asyncio = "0.23.8"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
