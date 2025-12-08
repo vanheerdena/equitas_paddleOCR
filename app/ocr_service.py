@@ -306,15 +306,20 @@ class OcrService:
                         if x2 > x1 and y2 > y1:
                             cropped = image[y1:y2, x1:x2]
                             # Encode as base64 PNG
-                            _, buffer = cv2.imencode(".png", cropped)
-                            b64_string = base64.b64encode(buffer).decode("utf-8")
-                            detected_images.append(
-                                DetectedImage(
-                                    bbox=bbox,
-                                    base64=b64_string,
-                                    rotation=0,
+                            success, buffer = cv2.imencode(".png", cropped)
+                            if success and buffer is not None:
+                                b64_string = base64.b64encode(buffer).decode("utf-8")
+                                detected_images.append(
+                                    DetectedImage(
+                                        bbox=bbox,
+                                        base64=b64_string,
+                                        rotation=0,
+                                    )
                                 )
-                            )
+                            else:
+                                logger.warning(
+                                    f"Failed to encode figure region at bbox {bbox}"
+                                )
 
         # Combine all text with newlines
         combined_text = "\n".join(all_texts)
