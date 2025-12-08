@@ -26,30 +26,44 @@ def print_response(title: str, response: httpx.Response) -> None:
     
     if response.status_code == 200:
         data = response.json()
-        print(f"\nResponse JSON:\n{json.dumps(data, indent=2)}")
         
-        # Extract and display text for text endpoint
-        if "blocks" in data:
-            print(f"\nExtracted Text Blocks ({len(data['blocks'])}):")
-            print("-" * 60)
-            for i, block in enumerate(data["blocks"], 1):
-                print(f"{i}. Text: {block['text']}")
-                print(f"   Confidence: {block['confidence']:.4f}")
-                print(f"   Box: {block['box']}")
-        
-        # Extract and display tables for table endpoint
-        if "tables" in data:
-            print(f"\nDetected Tables ({len(data['tables'])}):")
-            print("-" * 60)
-            for i, table in enumerate(data["tables"], 1):
-                print(f"\nTable {i}:")
-                if table.get("html"):
-                    print(f"  HTML: {table['html'][:200]}..." if len(table['html']) > 200 else f"  HTML: {table['html']}")
-                print(f"  Cells: {len(table.get('cells', []))}")
-                for j, cell in enumerate(table.get("cells", [])[:5], 1):  # Show first 5 cells
-                    print(f"    Cell {j}: {cell.get('text', 'N/A')} at {cell.get('bbox')}")
-                if len(table.get("cells", [])) > 5:
-                    print(f"    ... and {len(table['cells']) - 5} more cells")
+        # Handle paginated text response
+        if "pages" in data and "total_pages" in data:
+            print(f"\nTotal Pages: {data['total_pages']}")
+            
+            for page_data in data["pages"]:
+                page_num = page_data.get("page", "?")
+                print(f"\n--- Page {page_num} ---")
+                
+                # Text blocks (from /ocr/text)
+                if "blocks" in page_data:
+                    blocks = page_data["blocks"]
+                    print(f"Extracted Text Blocks ({len(blocks)}):")
+                    print("-" * 40)
+                    for i, block in enumerate(blocks[:10], 1):  # Show first 10
+                        print(f"{i}. Text: {block['text']}")
+                        print(f"   Confidence: {block['confidence']:.4f}")
+                    if len(blocks) > 10:
+                        print(f"   ... and {len(blocks) - 10} more blocks")
+                
+                # Tables (from /ocr/table)
+                if "tables" in page_data:
+                    tables = page_data["tables"]
+                    print(f"Detected Tables ({len(tables)}):")
+                    print("-" * 40)
+                    for i, table in enumerate(tables, 1):
+                        print(f"\nTable {i}:")
+                        if table.get("html"):
+                            html_preview = table['html'][:200] + "..." if len(table['html']) > 200 else table['html']
+                            print(f"  HTML: {html_preview}")
+                        print(f"  Cells: {len(table.get('cells', []))}")
+                        for j, cell in enumerate(table.get("cells", [])[:5], 1):
+                            print(f"    Cell {j}: {cell.get('text', 'N/A')} at {cell.get('bbox')}")
+                        if len(table.get("cells", [])) > 5:
+                            print(f"    ... and {len(table['cells']) - 5} more cells")
+        else:
+            # Fallback for unexpected format
+            print(f"\nResponse JSON:\n{json.dumps(data, indent=2)}")
     else:
         print(f"Error: {response.text}")
 
@@ -67,7 +81,8 @@ def main() -> None:
     print(f"API Base URL: {BASE_URL}")
     print(f"Using API Key: {API_KEY[:10]}..." if len(API_KEY) > 10 else f"Using API Key: {API_KEY}")
     
-    with httpx.Client(timeout=60.0) as client:
+    # Longer timeout for Railway - first request downloads models (~30-60s)
+    with httpx.Client(timeout=180.0) as client:
         # Test text endpoint
         print("\n\n[1] Testing /ocr/text endpoint...")
         try:
