@@ -12,7 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     # PaddleOCR settings
     PADDLE_WITH_MKLDNN=OFF
 
-# Install system dependencies required by OpenCV and PaddlePaddle
+# Install system dependencies required by OpenCV, PaddlePaddle, and PDF processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender1 \
     libgomp1 \
+    # Poppler for PDF to image conversion (pdf2image dependency)
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
