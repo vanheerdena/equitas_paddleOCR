@@ -13,6 +13,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import httpx
 from dotenv import load_dotenv
@@ -28,6 +29,49 @@ PDF_PATH = Path("Memo.pdf")
 CACHE_DIR = Path("cache")
 TEXT_CACHE = CACHE_DIR / "memo_text_response.json"
 TABLE_CACHE = CACHE_DIR / "memo_table_response.json"
+
+# Required keywords for valid Q&A tables
+REQUIRED_TABLE_KEYWORDS = ["Question", "Answer", "Marks"]
+
+
+def is_valid_qa_table(table: dict[str, Any]) -> bool:
+    """Check if a table contains the required Q&A keywords in its HTML.
+
+    A valid Q&A table must contain "Question", "Answer", and "Marks" in its
+    HTML content. Tables without these keywords are filtered out.
+
+    Args:
+        table: The table dict to check (must have 'html' key).
+
+    Returns:
+        True if the table contains all required keywords, False otherwise.
+    """
+    html = table.get("html")
+    if not html:
+        return False
+    return all(keyword in html for keyword in REQUIRED_TABLE_KEYWORDS)
+
+
+def filter_qa_tables_in_response(data: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
+    """Filter tables in a response to only include valid Q&A tables.
+
+    Args:
+        data: The response data dict containing 'pages' with 'tables'.
+
+    Returns:
+        Tuple of (filtered_data, total_before, total_after).
+    """
+    total_before = 0
+    total_after = 0
+    
+    for page in data.get("pages", []):
+        tables = page.get("tables", [])
+        total_before += len(tables)
+        filtered_tables = [t for t in tables if is_valid_qa_table(t)]
+        total_after += len(filtered_tables)
+        page["tables"] = filtered_tables
+    
+    return data, total_before, total_after
 
 
 def print_text_response(response: httpx.Response) -> None:
@@ -77,8 +121,18 @@ def print_text_response(response: httpx.Response) -> None:
         print(f"   {all_text[:300]}{'...' if len(all_text) > 300 else ''}")
 
 
-def print_table_response(response: httpx.Response) -> None:
-    """Pretty print table OCR response for PDF."""
+def print_table_response(
+    response: httpx.Response,
+    tables_before: int | None = None,
+    tables_after: int | None = None,
+) -> None:
+    """Pretty print table OCR response for PDF.
+
+    Args:
+        response: The HTTP response from the table endpoint.
+        tables_before: Optional count of tables before filtering.
+        tables_after: Optional count of tables after filtering.
+    """
     print(f"\n{'='*80}")
     print("TABLE OCR RESULTS")
     print(f"{'='*80}")
@@ -94,7 +148,12 @@ def print_table_response(response: httpx.Response) -> None:
 
     total_tables = sum(len(p.get("tables", [])) for p in pages)
     print(f"📄 Total Pages: {total_pages}")
-    print(f"📊 Total Tables Found: {total_tables}\n")
+    
+    # Show filtering stats if available
+    if tables_before is not None and tables_after is not None:
+        print(f"📊 Tables Found: {tables_before} → Kept: {tables_after} (filtered for Question/Answer/Marks)")
+    else:
+        print(f"📊 Total Tables Found: {total_tables}\n")
 
     for page_data in pages:
         page_num = page_data.get("page", "?")
@@ -214,7 +273,10 @@ def run_live_test() -> None:
 
 
 def run_cached_test() -> None:
-    """Display results from cached responses (no API calls)."""
+    """Display results from cached responses (no API calls).
+
+    Applies Q&A table filtering to cached table responses.
+    """
     print(f"\n{'='*80}")
     print("📦 Using CACHED responses (no API calls)")
     print(f"{'='*80}")
@@ -228,7 +290,7 @@ def run_cached_test() -> None:
         # Create a mock response-like object
         class MockResponse:
             status_code = 200
-            def json(self):
+            def json(self) -> dict:
                 return text_data
         print_text_response(MockResponse())
     else:
@@ -237,15 +299,18 @@ def run_cached_test() -> None:
 
     # Table response
     print(f"\n\n{'='*80}")
-    print("[2] Cached /ocr/table response")
+    print("[2] Cached /ocr/table response (filtered)")
     print(f"{'='*80}")
     table_data = load_cache(TABLE_CACHE)
     if table_data:
+        # Apply Q&A table filtering
+        filtered_data, tables_before, tables_after = filter_qa_tables_in_response(table_data)
+        
         class MockResponse:
             status_code = 200
-            def json(self):
-                return table_data
-        print_table_response(MockResponse())
+            def json(self) -> dict:
+                return filtered_data
+        print_table_response(MockResponse(), tables_before, tables_after)
     else:
         print(f"❌ Cache not found: {TABLE_CACHE}")
         print("   Run without --cached first to generate cache.")

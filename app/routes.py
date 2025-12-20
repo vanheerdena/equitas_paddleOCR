@@ -22,6 +22,7 @@ from .schemas import (
     PageTableResult,
     PageTextResult,
     TableOcrResponse,
+    TableResult,
     TextOcrResponse,
 )
 
@@ -30,6 +31,40 @@ INSERTS_CACHE_FILE = "memo_inserts_response.json"
 from .security import verify_api_key
 
 logger = logging.getLogger(__name__)
+
+# Required keywords for valid Q&A tables
+REQUIRED_TABLE_KEYWORDS = ["Question", "Answer", "Marks"]
+
+
+def is_valid_qa_table(table: TableResult) -> bool:
+    """Check if a table contains the required Q&A keywords in its HTML.
+
+    A valid Q&A table must contain "Question", "Answer", and "Marks" in its
+    HTML content. Tables without these keywords are filtered out.
+
+    Args:
+        table: The TableResult to check.
+
+    Returns:
+        True if the table contains all required keywords, False otherwise.
+    """
+    if not table.html:
+        return False
+    
+    html_content = table.html
+    return all(keyword in html_content for keyword in REQUIRED_TABLE_KEYWORDS)
+
+
+def filter_qa_tables(tables: List[TableResult]) -> List[TableResult]:
+    """Filter a list of tables to only include valid Q&A tables.
+
+    Args:
+        tables: List of TableResult objects to filter.
+
+    Returns:
+        Filtered list containing only tables with Question/Answer/Marks headers.
+    """
+    return [table for table in tables if is_valid_qa_table(table)]
 
 router = APIRouter(prefix="/ocr", tags=["ocr"])
 
@@ -94,6 +129,7 @@ async def ocr_table(
     """Perform table extraction on an uploaded image/PDF or a URL-hosted image/PDF.
 
     For PDFs, each page is processed separately and results are collated.
+    Tables are filtered to only include those containing Question/Answer/Marks headers.
     """
     try:
         images: List[np.ndarray] = await load_images(
@@ -101,9 +137,23 @@ async def ocr_table(
         )
 
         pages: List[PageTableResult] = []
+        total_tables_before = 0
+        total_tables_after = 0
+        
         for page_num, image in enumerate(images, start=1):
             page_result = service.run_table_single(image)
-            pages.append(PageTableResult(page=page_num, tables=page_result.tables))
+            total_tables_before += len(page_result.tables)
+            
+            # Filter tables to only include valid Q&A tables
+            filtered_tables = filter_qa_tables(page_result.tables)
+            total_tables_after += len(filtered_tables)
+            
+            pages.append(PageTableResult(page=page_num, tables=filtered_tables))
+        
+        logger.info(
+            f"Table filtering: {total_tables_before} tables found, "
+            f"{total_tables_after} tables kept (containing Question/Answer/Marks)"
+        )
 
         return TableOcrResponse(pages=pages, total_pages=len(pages))
 
@@ -261,6 +311,7 @@ async def ocr_table_cached(
     """Return cached table OCR response (for testing - ignores uploaded file).
 
     Returns the pre-saved response from cache/memo_table_response.json.
+    Tables are filtered to only include those containing Question/Answer/Marks headers.
     Use this for fast testing without running actual OCR.
     """
     cache_file = CACHE_DIR / "memo_table_response.json"
@@ -274,7 +325,21 @@ async def ocr_table_cached(
     try:
         with open(cache_file, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return TableOcrResponse(**data)
+        
+        # Apply Q&A table filtering to cached data
+        response = TableOcrResponse(**data)
+        total_before = sum(len(page.tables) for page in response.pages)
+        
+        for page in response.pages:
+            page.tables = filter_qa_tables(page.tables)
+        
+        total_after = sum(len(page.tables) for page in response.pages)
+        logger.info(
+            f"Cached table filtering: {total_before} tables found, "
+            f"{total_after} tables kept (containing Question/Answer/Marks)"
+        )
+        
+        return response
     except Exception as e:
         logger.exception("Error loading cached table response")
         raise HTTPException(
